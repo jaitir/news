@@ -1,0 +1,14 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+sqlalchemy==2.0.40
+psycopg[binary]==3.2.6
+pydantic==2.11.3
+pydantic-settings==2.8.1
+httpx==0.28.1
+python-dateutil==2.9.0.post0
+openpyxl==3.1.5
+eventregistry>=9.0.0,<10
+telethon==1.43.1
+mediacloud==4.6.0
+deep-translator==1.11.4
+python-docx==1.2.0
