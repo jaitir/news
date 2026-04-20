@@ -1,14 +1,11 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
-
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const REPO_ROOT = path.resolve(process.cwd(), "..");
-const PYTHON_BIN = path.join(REPO_ROOT, ".venv", "bin", "python");
-const SCRIPT_PATH = path.join(REPO_ROOT, "backend", "scripts", "event_registry_search.py");
-const PYTHONPATH = path.join(REPO_ROOT, "backend");
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL
+  ?? process.env.INTERNAL_API_BASE_URL
+  ?? "http://127.0.0.1:8000/api/v1";
 
 type SearchPayload = {
   query: string;
@@ -16,45 +13,6 @@ type SearchPayload = {
   limit: number;
   sort_by: "relevance" | "date";
 };
-
-function runEventRegistrySearch(payload: SearchPayload): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, [SCRIPT_PATH], {
-      cwd: REPO_ROOT,
-      env: {
-        ...process.env,
-        PYTHONPATH,
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf-8");
-    });
-
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf-8");
-    });
-
-    child.on("error", (error) => {
-      reject(error);
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(stdout);
-        return;
-      }
-      reject(new Error(stderr.trim() || `Python process exited with code ${code}.`));
-    });
-
-    child.stdin.write(JSON.stringify(payload));
-    child.stdin.end();
-  });
-}
 
 export async function POST(request: Request) {
   try {
@@ -68,12 +26,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const responseText = await runEventRegistrySearch({
-      query,
-      lookback_days: payload.lookback_days ?? 30,
-      limit: payload.limit ?? 25,
-      sort_by: payload.sort_by ?? "relevance",
+    const backendResponse = await fetch(`${API_BASE}/event-registry/search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        lookback_days: payload.lookback_days ?? 30,
+        limit: payload.limit ?? 25,
+        sort_by: payload.sort_by ?? "relevance",
+      } satisfies SearchPayload),
+      cache: "no-store",
     });
+
+    const responseText = await backendResponse.text();
+    if (!backendResponse.ok) {
+      return new Response(responseText || JSON.stringify({ detail: "Backend proxy error" }), {
+        status: backendResponse.status,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+    }
 
     return new Response(responseText, {
       status: 200,
@@ -84,14 +59,11 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error
       ? error.message
-      : "Не удалось запустить локальный Event Registry search.";
+      : "Не удалось выполнить проксированный Event Registry search.";
 
     return NextResponse.json(
       {
-        detail:
-          "Не удалось выполнить локальный поиск через Event Registry. " +
-          "Проверь наличие `.venv`, пакета `eventregistry` и ключа `EVENT_REGISTRY_API_KEY`. " +
-          message,
+        detail: "Не удалось выполнить проксированный поиск через backend API. " + message,
       },
       { status: 502 },
     );
