@@ -190,18 +190,36 @@ class EventRegistryNewsService:
 
 
 NARRATIVE_SYSTEM_PROMPT = """
-You are a media analyst. Identify recurring narratives in multilingual news coverage.
+You are a senior geopolitical media analyst specializing in the South Caucasus region.
+Identify recurring narratives in multilingual news coverage, with analytical priority given
+to narratives that are geopolitically significant for Azerbaijan.
 
-Rules:
-- Keep narrative labels concise (max 10 words), neutral and de-duplicated.
-- Narrative labels must be written in Russian.
-- Capture both supporting and disputing narratives where present.
-- Use only provided article snippets and metadata.
+Prioritization rules
+- HIGH PRIORITY: narratives touching Azerbaijan's territorial integrity, energy/transit corridors,
+  relations with Armenia/Russia/Turkey/Iran/EU/US, normalization process, diaspora, international
+  recognition, or hybrid warfare / information operations.
+- LOW PRIORITY: surface-level, ceremonial, or purely domestic human-interest narratives.
+  Include LOW only if needed to reach minimum narrative count.
+- Return narratives sorted by priority: HIGH first, LOW last.
+
+Output rules
+- Narrative labels: concise (max 10 words), neutral, de-duplicated, written in Russian.
+- Capture both supporting AND disputing narratives where present.
+- Use ONLY the provided article snippets and metadata.
 - Evidence quotes must be exact substrings from provided snippets.
-- If quote is not in Russian, keep original in quote and provide Russian translation in quote_ru.
-- Include article_urls as unique URLs of all articles that represent the narrative.
-- For each narrative, provide one evidence quote for every article listed in article_urls.
-- Return 3-12 narratives.
+- If quote is not in Russian, keep original in quote and provide a Russian translation in quote_ru.
+- For each narrative include one evidence quote per article listed in article_urls.
+- Return 5-10 narratives (fewer only if source material is genuinely sparse).
+
+Counter-narrative rule
+- For every HIGH PRIORITY narrative, attempt to identify a counter-narrative present in the
+  source material.
+- If found, add it as a separate narrative object with counter_to equal to primary narrative label.
+- If no counter-narrative is found in the sources, omit counter_to.
+
+Geographic attribution
+- For each narrative include geo_focus as array of countries or regions
+  (e.g. Azerbaijan, Armenia, EU, Russia, South Caucasus) based on snippets and metadata.
 """.strip()
 
 
@@ -213,11 +231,18 @@ NARRATIVE_SCHEMA = {
         "narratives": {
             "type": "array",
             "minItems": 0,
-            "maxItems": 12,
+            "maxItems": 10,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["narrative", "stance", "article_count", "article_urls", "evidences"],
+                "required": [
+                    "narrative",
+                    "stance",
+                    "article_count",
+                    "article_urls",
+                    "geo_focus",
+                    "evidences",
+                ],
                 "properties": {
                     "narrative": {"type": "string", "minLength": 3, "maxLength": 180},
                     "stance": {
@@ -225,11 +250,18 @@ NARRATIVE_SCHEMA = {
                         "enum": ["support", "dispute", "mixed", "neutral"],
                     },
                     "article_count": {"type": "integer", "minimum": 1, "maximum": 200},
+                    "counter_to": {"type": ["string", "null"], "maxLength": 180},
                     "article_urls": {
                         "type": "array",
                         "minItems": 1,
                         "maxItems": 200,
                         "items": {"type": "string", "minLength": 3, "maxLength": 2000},
+                    },
+                    "geo_focus": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 10,
+                        "items": {"type": "string", "minLength": 2, "maxLength": 80},
                     },
                     "evidences": {
                         "type": "array",
@@ -433,6 +465,7 @@ def _parse_narrative_rows(payload: dict) -> list[NarrativeResponse]:
         article_urls = _normalize_url_list(raw_urls)
         if not article_urls:
             article_urls = list({evidence.article_url for evidence in evidences if evidence.article_url})
+        geo_focus = _normalize_string_list(row.get("geo_focus"), limit=10)
 
         if not narrative or not evidences or not isinstance(article_count, int) or article_count <= 0:
             continue
@@ -445,6 +478,8 @@ def _parse_narrative_rows(payload: dict) -> list[NarrativeResponse]:
                 stance=stance,
                 article_count=max(article_count, len(article_urls)),
                 article_urls=article_urls,
+                counter_to=_optional_text(row.get("counter_to")),
+                geo_focus=geo_focus,
                 evidences=evidences,
             )
         )
@@ -474,6 +509,27 @@ def _normalize_url_list(value: object) -> list[str]:
             continue
         seen.add(key)
         normalized.append(url)
+    return normalized
+
+
+def _normalize_string_list(value: object, *, limit: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = item.strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+        if len(normalized) >= limit:
+            break
     return normalized
 
 

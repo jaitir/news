@@ -245,6 +245,8 @@ export type EventRegistryNarrative = {
   stance: "support" | "dispute" | "mixed" | "neutral";
   article_count: number;
   article_urls: string[];
+  counter_to: string | null;
+  geo_focus: string[];
   evidences: EventRegistryNarrativeEvidence[];
 };
 

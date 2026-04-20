@@ -83,6 +83,8 @@ class NarrativeResponse(BaseModel):
     stance: Literal["support", "dispute", "mixed", "neutral"] = "neutral"
     article_count: int = 0
     article_urls: list[str] = Field(default_factory=list)
+    counter_to: str | None = None
+    geo_focus: list[str] = Field(default_factory=list)
     evidences: list[NarrativeEvidenceResponse] = Field(default_factory=list)
 
 

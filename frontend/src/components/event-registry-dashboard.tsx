@@ -1349,6 +1349,16 @@ export function EventRegistryDashboard() {
                           <span className="rounded-full border border-[#132642]/10 px-2.5 py-1 text-[#5d6d83]">
                             В статьях: {narrative.article_count}
                           </span>
+                          {narrative.counter_to ? (
+                            <span className="rounded-full border border-[#a855f7]/25 bg-[#faf5ff] px-2.5 py-1 text-[#7e22ce]">
+                              Контр-нарратив к: {narrative.counter_to}
+                            </span>
+                          ) : null}
+                          {narrative.geo_focus?.length ? (
+                            <span className="rounded-full border border-[#132642]/10 bg-[#f7fbff] px-2.5 py-1 text-[#1d4d7c]">
+                              Гео: {narrative.geo_focus.join(", ")}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <span
