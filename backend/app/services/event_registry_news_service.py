@@ -239,6 +239,7 @@ NARRATIVE_SCHEMA = {
                     "narrative",
                     "stance",
                     "article_count",
+                    "counter_to",
                     "article_urls",
                     "geo_focus",
                     "evidences",
