@@ -13,8 +13,6 @@ import type {
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
-const DIRECT_BACKEND_API_BASE =
-  process.env.NEXT_PUBLIC_DIRECT_BACKEND_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 export type ExportFormat = "excel" | "docx";
 
@@ -168,12 +166,7 @@ export async function searchEventRegistryNews(
 export async function analyzeEventRegistryNarratives(
   payload: EventRegistryNarrativesRequest,
 ): Promise<EventRegistryNarrativesResponse> {
-  const narrativesEndpoint =
-    typeof window !== "undefined" && API_BASE.startsWith("/")
-      ? `${DIRECT_BACKEND_API_BASE}/event-registry/narratives`
-      : `${API_BASE}/event-registry/narratives`;
-
-  const response = await fetch(narrativesEndpoint, withDeviceHeaders({
+  const response = await fetch(`${API_BASE}/event-registry/narratives`, withDeviceHeaders({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
